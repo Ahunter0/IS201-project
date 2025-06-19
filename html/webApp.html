@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game</title>
+</head>
+<body>
+    <a href="scratch.html" id="back-to-scratch" style="position:absolute;top:16px;left:16px;z-index:4;text-decoration:none;">
+        <button style="font-size:18px;padding:8px 20px;border-radius:8px;background:rgba(42,77,105,0.35);color:#fff;border:none;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.10);backdrop-filter:blur(2px);">← Back to Pottery Page</button>
+    </a>
+    <canvas id="snakeCanvas" style="background: #222; display: block; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;"></canvas>
+    <p style="position: absolute; top: 8px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 20px; margin: 0; z-index: 2;">
+        Use arrow keys to play. Score: <span id="score">0</span>
+        <span style="margin-left: 24px;">High Score: <span id="highscore">0</span></span>
+    </p>
+    <button id="play-again-btn" style="display:none; position:absolute; left:50%; top:55%; transform:translate(-50%, -50%); font-size: 24px; padding: 12px 32px; border-radius: 8px; border:none; background:#4CAF50; color:#fff; cursor:pointer; z-index:3;">Play Again</button>
+    <script>
+    const canvas = document.getElementById('snakeCanvas');
+    const ctx = canvas.getContext('2d');
+    let box = 20; // size of one square
+    let cols, rows;
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        cols = Math.floor(canvas.width / box);
+        rows = Math.floor(canvas.height / box);
+    }
+    resizeCanvas();
+    window.addEventListener('resize', () => {
+        resizeCanvas();
+        startGame();
+    });
+
+let snake, direction, food, score, gameInterval;
+let highscore = localStorage.getItem('snakeHighScore') ? parseInt(localStorage.getItem('snakeHighScore')) : 0;
+let blueFood = null;
+let yellowFood = null;
+let isInvincible = false;
+let normalInterval = 100;
+let fastInterval = 50;
+let invincibleTimeout = null;
+
+    document.addEventListener('keydown', dir);
+    function dir(e) {
+        if (e.key === 'ArrowLeft' && direction !== 'RIGHT') direction = 'LEFT';
+        else if (e.key === 'ArrowUp' && direction !== 'DOWN') direction = 'UP';
+        else if (e.key === 'ArrowRight' && direction !== 'LEFT') direction = 'RIGHT';
+        else if (e.key === 'ArrowDown' && direction !== 'UP') direction = 'DOWN';
+    }
+
+    function draw() {
+        // Update highscore display
+        document.getElementById('highscore').textContent = highscore;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Draw snake
+        for (let i = 0; i < snake.length; i++) {
+            ctx.fillStyle = i === 0 ? '#4CAF50' : '#8BC34A';
+            drawRoundedRect(ctx, snake[i].x, snake[i].y, box, box, box/2.2);
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 1;
+            drawRoundedRect(ctx, snake[i].x, snake[i].y, box, box, box/2.2, false, true);
+        }
+
+        // Draw red food as a circle
+        ctx.fillStyle = '#FF5252';
+        drawCircle(ctx, food.x + box/2, food.y + box/2, box/2);
+
+        // Draw blue food if present
+        if (blueFood) {
+            ctx.fillStyle = '#2196F3';
+            drawCircle(ctx, blueFood.x + box/2, blueFood.y + box/2, box/2);
+        }
+        // Draw yellow food if present
+        if (yellowFood) {
+            ctx.fillStyle = '#FFD600';
+            drawCircle(ctx, yellowFood.x + box/2, yellowFood.y + box/2, box/2);
+        }
+
+        // Old head position
+        let headX = snake[0].x;
+        let headY = snake[0].y;
+
+        // Update head position
+        if (direction === 'LEFT') headX -= box;
+        if (direction === 'UP') headY -= box;
+        if (direction === 'RIGHT') headX += box;
+        if (direction === 'DOWN') headY += box;
+
+
+        // Check collision with red food
+        if (headX === food.x && headY === food.y) {
+            score++;
+            document.getElementById('score').textContent = score;
+            if (score > highscore) {
+                highscore = score;
+                localStorage.setItem('snakeHighScore', highscore);
+            }
+            placeFood();
+        } else if (blueFood && headX === blueFood.x && headY === blueFood.y) {
+            // Blue food effect: speed up and invincible
+            score += 3;
+            document.getElementById('score').textContent = score;
+            if (score > highscore) {
+                highscore = score;
+                localStorage.setItem('snakeHighScore', highscore);
+            }
+            blueFood = null;
+            isInvincible = true;
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(draw, fastInterval);
+            if (invincibleTimeout) clearTimeout(invincibleTimeout);
+            invincibleTimeout = setTimeout(() => {
+                isInvincible = false;
+                if (gameInterval) clearInterval(gameInterval);
+                gameInterval = setInterval(draw, normalInterval);
+            }, 10000);
+        } else if (yellowFood && headX === yellowFood.x && headY === yellowFood.y) {
+            // Yellow food effect: add 3 squares to the snake and 3 points
+            score += 3;
+            document.getElementById('score').textContent = score;
+            if (score > highscore) {
+                highscore = score;
+                localStorage.setItem('snakeHighScore', highscore);
+            }
+            // Add 3 squares to the snake (by not popping for 3 turns)
+            for (let i = 0; i < 3; i++) {
+                snake.unshift({x: snake[0].x, y: snake[0].y});
+            }
+            yellowFood = null;
+            placeFood();
+        } else {
+            snake.pop();
+        }
+
+        // New head
+        let newHead = {x: headX, y: headY};
+
+        // Game over conditions
+        if (!isInvincible && (
+            headX < 0 || headX >= cols * box ||
+            headY < 0 || headY >= rows * box ||
+            collision(newHead, snake)
+        )) {
+            clearInterval(gameInterval);
+            ctx.fillStyle = '#fff';
+            ctx.font = '48px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Game Over', canvas.width/2, canvas.height/2);
+            // Show Play Again button
+            document.getElementById('play-again-btn').style.display = 'block';
+            return;
+        }
+
+        snake.unshift(newHead);
+    }
+
+    function collision(head, arr) {
+        for (let i = 0; i < arr.length; i++) {
+            if (head.x === arr[i].x && head.y === arr[i].y) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function placeFood() {
+        food = {
+            x: Math.floor(Math.random()*cols)*box,
+            y: Math.floor(Math.random()*rows)*box
+        };
+        // Prevent food from spawning on the snake, blue food, or yellow food
+        for (let i = 0; i < snake.length; i++) {
+            if (
+                (food.x === snake[i].x && food.y === snake[i].y) ||
+                (blueFood && food.x === blueFood.x && food.y === blueFood.y) ||
+                (yellowFood && food.x === yellowFood.x && food.y === yellowFood.y)
+            ) {
+                placeFood();
+                return;
+            }
+        }
+        // 10% chance to spawn blue food
+        if (Math.random() < 0.1 && !blueFood) {
+            placeBlueFood();
+        }
+        // 30% chance to spawn yellow food
+        if (Math.random() < 0.3 && !yellowFood) {
+            placeYellowFood();
+        }
+    } // <-- This closes placeFood
+
+    function placeBlueFood() {
+        blueFood = {
+            x: Math.floor(Math.random()*cols)*box,
+            y: Math.floor(Math.random()*rows)*box
+        };
+        // Prevent blue food from spawning on the snake or red food
+        for (let i = 0; i < snake.length; i++) {
+            if ((blueFood.x === snake[i].x && blueFood.y === snake[i].y) || (blueFood.x === food.x && blueFood.y === food.y)) {
+                placeBlueFood();
+                return;
+            }
+        }
+    }
+
+    function placeYellowFood() {
+        yellowFood = {
+            x: Math.floor(Math.random()*cols)*box,
+            y: Math.floor(Math.random()*rows)*box
+        };
+        // Prevent yellow food from spawning on the snake, red, or blue food
+        for (let i = 0; i < snake.length; i++) {
+            if (
+                (yellowFood.x === snake[i].x && yellowFood.y === snake[i].y) ||
+                (yellowFood.x === food.x && yellowFood.y === food.y) ||
+                (blueFood && yellowFood.x === blueFood.x && yellowFood.y === blueFood.y)
+            ) {
+                placeYellowFood();
+                return;
+            }
+        }
+    }
+
+    function startGame() {
+        direction = null;
+        snake = [{x: Math.floor(cols/2)*box, y: Math.floor(rows/2)*box}];
+        score = 0;
+        document.getElementById('score').textContent = score;
+        blueFood = null;
+        yellowFood = null;
+        isInvincible = false;
+        if (invincibleTimeout) clearTimeout(invincibleTimeout);
+
+        // Place all three food types at the start
+        // Place red food
+        function randomFoodPos() {
+            return {
+                x: Math.floor(Math.random()*cols)*box,
+                y: Math.floor(Math.random()*rows)*box
+            };
+        }
+        // Place red food
+        food = randomFoodPos();
+        // Place blue food, not overlapping snake or red food
+        do {
+            blueFood = randomFoodPos();
+        } while ((blueFood.x === food.x && blueFood.y === food.y) || (blueFood.x === snake[0].x && blueFood.y === snake[0].y));
+        // Place yellow food, not overlapping snake, red, or blue food
+        do {
+            yellowFood = randomFoodPos();
+        } while (
+            (yellowFood.x === food.x && yellowFood.y === food.y) ||
+            (yellowFood.x === blueFood.x && yellowFood.y === blueFood.y) ||
+            (yellowFood.x === snake[0].x && yellowFood.y === snake[0].y)
+        );
+
+        if (gameInterval) clearInterval(gameInterval);
+        gameInterval = setInterval(draw, normalInterval);
+        // Hide Play Again button if visible
+        document.getElementById('play-again-btn').style.display = 'none';
+        // Update highscore display at start
+        document.getElementById('highscore').textContent = highscore;
+    // Add event listener for Play Again button
+    document.getElementById('play-again-btn').onclick = function() {
+        startGame();
+    };
+    }
+
+    startGame();
+
+    // Helper function to draw rounded rectangles
+    function drawRoundedRect(ctx, x, y, w, h, r, fill = true, stroke = false) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+        if (fill) ctx.fill();
+        if (stroke) ctx.stroke();
+    }
+
+    // Helper function to draw a circle
+    function drawCircle(ctx, x, y, r) {
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, 2 * Math.PI);
+        ctx.closePath();
+        ctx.fill();
+    }
+    </script>
+</body>
+</html>

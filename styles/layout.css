@@ -1,0 +1,36 @@
+
+.mainbody {
+    background: #fff;
+    padding: 32px;
+    margin: 10px auto;
+    max-width: 900px;
+    border-radius: 12px;
+    box-shadow: 0 4px 24px gray;
+    position: static;
+}
+
+.rightmenu {
+    background: #fff;
+    padding: 16px;
+    margin-top:10px;
+    border-radius: 12px;
+    box-shadow: 0 4px 24px gray;
+    position: fixed;
+    right: 16px;
+    top: 0px;
+    width: 175px;
+   
+}
+
+.leftmenu {
+    background: #fff;
+    padding: 16px;
+    margin-top:10px;
+    border-radius: 12px;
+    box-shadow: 0 4px 24px gray;
+    position: fixed;
+    left: 16px;
+    top: 0px;
+    width: 175px;
+   
+}
